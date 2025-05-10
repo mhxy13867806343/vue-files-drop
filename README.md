@@ -2,6 +2,8 @@
 
 一个基于Vue 3开发的轻量级文件夹管理器，提供丰富的文件管理功能，包括多选、拖拽排序和键盘快捷键支持。
 
+**在线演示**: [https://mhxy13867806343.github.io/vue-files-drop/](https://mhxy13867806343.github.io/vue-files-drop/)
+
 ## 功能特性
 
 ### 基础文件操作
