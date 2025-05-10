@@ -1,0 +1,1836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文件夹管理器</title>
+  <!-- Vue 3.2 CDN -->
+  <script src="https://unpkg.com/vue@3.2.47/dist/vue.global.js"></script>
+  <!-- Element Plus -->
+  <link rel="stylesheet" href="https://unpkg.com/element-plus@2.3.7/dist/index.css" />
+  <script src="https://unpkg.com/element-plus@2.3.7/dist/index.full.js"></script>
+  <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Microsoft YaHei', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    .app-container {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .btn-action {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .btn-action:hover {
+      opacity: 0.9;
+    }
+    
+    .btn-save {
+      background-color: #4CAF50;
+      color: white;
+    }
+    
+    .drag-area {
+      border: 2px dashed #ccc;
+      background-color: rgba(0, 0, 0, 0.02);
+    }
+    
+    .drag-active {
+      border-color: #4CAF50;
+      background-color: rgba(76, 175, 80, 0.1);
+    }
+    
+    .folder-container {
+      position: relative;
+      min-height: 400px;
+      padding: 20px;
+      border: 1px dashed #ddd;
+      border-radius: 4px;
+      user-select: none;
+    }
+    
+    .folders-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    
+    .folder-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: auto;
+      height: 100px;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      z-index: 1;
+      user-select: none; /* 防止拖动时选择文本 */
+    }
+    
+    .folder-item.dragging {
+      opacity: 0.7;
+      transform: scale(1.05);
+      z-index: 10;
+    }
+    
+    .folder-item.drag-over {
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .folder-item:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .folder-item.hover {
+      background-color: rgba(0, 0, 0, 0.08);
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+    }
+    
+    .folder-item.selected {
+      background-color: rgba(25, 118, 210, 0.2);
+      outline: 3px solid #1976d2;
+      box-shadow: 0 0 8px rgba(25, 118, 210, 0.5);
+    }
+    
+    .folder-item.selected.hover {
+      background-color: rgba(25, 118, 210, 0.25);
+    }
+    
+    .selection-info {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(25, 118, 210, 0.1);
+      border: 1px solid #1976d2;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #1976d2;
+      z-index: 100;
+    }
+    
+    .selection-box {
+      position: fixed;
+      border: 2px solid rgba(25, 118, 210, 0.8);
+      background-color: rgba(25, 118, 210, 0.15);
+      z-index: 90;
+      pointer-events: none;
+      box-shadow: 0 0 10px rgba(25, 118, 210, 0.4);
+    }
+    
+    .selection-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .selection-actions button {
+      padding: 2px 8px;
+      border: none;
+      border-radius: 3px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .selection-actions button.delete {
+      background-color: #f44336;
+    }
+    
+    .keyboard-shortcuts {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    
+    .folder-icon {
+      font-size: 40px;
+      color: #ffc107;
+      margin-bottom: 8px;
+    }
+    
+    .folder-name {
+      font-size: 14px;
+      text-align: center;
+      word-break: break-word;
+      overflow: hidden;
+      max-height: 42px;
+      width: 100%;
+    }
+    
+    .folder-name-input {
+      width: 100%;
+      padding: 4px 6px;
+      text-align: center;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      outline: none;
+      font-size: 14px;
+    }
+    
+    .context-menu {
+      position: fixed;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+      min-width: 200px;
+      font-size: 14px;
+    }
+    
+    .menu-item {
+      padding: 10px 15px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .menu-item:hover {
+      background-color: #f5f5f5;
+    }
+    
+    .empty-text {
+      text-align: center;
+      padding: 40px 0;
+      color: #999;
+      font-style: italic;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .hint {
+      margin-top: 20px;
+      color: #666;
+      font-size: 13px;
+      padding: 10px;
+      background-color: #f0f8ff;
+      border-radius: 4px;
+      line-height: 1.6;
+    }
+    
+    .file-icon {
+      color: #2196F3;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="app-container">
+      <div class="header">
+        <h2>文件夹管理器({{folders.length}})</h2>
+        <div class="header-buttons">
+          <el-button @click="createNewFolder" class="btn-action">新建文件夹</el-button>
+          <el-button
+          v-if="folders.length"
+          @click="saveData" class="btn-action btn-save">保存</el-button>
+          <el-button
+          v-if="folders.length"
+          type="warning"
+          @click="clearData" class="btn-action btn-save">清除</el-button>
+        </div>
+      </div>
+
+      <div 
+        class="folder-container" 
+        @click="handleContainerClick($event)"
+        @contextmenu.prevent="showContextMenu($event)"
+        @mousedown="startDragSelection($event)"
+        @mousemove="updateDragSelection($event)"
+        @mouseup="endDragSelection($event)"
+        @mouseleave="endDragSelection($event)"
+        @dragover="onDragOver"
+        @dragleave="onDragLeave"
+        @drop="onDrop"
+        :class="{ 'drag-area': isDragging, 'drag-active': isDraggingActive }"
+      >
+        <!-- 文件夹列表 -->
+        <div v-if="folders.length > 0" class="folders-list">
+          <div 
+            v-for="(folder, index) in folders" 
+            :key="folder.id" 
+            class="folder-item"
+            :data-id="folder.id"
+            :class="{ 
+              'selected': selectedFolders.includes(folder.id),
+              'hover': hoveredFolderId === folder.id,
+              'dragging': draggedFolder && draggedFolder.id === folder.id,
+              'drag-over': dragOverFolder && dragOverFolder.id === folder.id
+            }"
+            @click.stop="handleFolderClick(folder, index, $event)"
+            @contextmenu.stop.prevent="showContextMenu($event, folder)"
+            @dblclick="startEdit(folder)"
+            @mouseover="onFolderMouseOver(folder)"
+            @mouseleave="onFolderMouseLeave(folder)"
+            draggable="true"
+            @dragstart="handleDragStart($event, folder, index)"
+            @dragover.prevent="handleDragOver($event, folder, index)"
+            @drop.prevent="handleDrop($event, folder, index)"
+          >
+            <template v-if="editingFolder && editingFolder.id === folder.id">
+              <div class="folder-icon" :class="{'file-icon': folder.isFile}">{{ folder.isFile ? '📄' : '📁' }}</div>
+              <input 
+                ref="editInput"
+                v-model="editingFolder.name" 
+                @blur="finishEdit" 
+                @keyup.enter="finishEdit"
+                @keyup.esc="cancelEdit"
+                class="folder-name-input"
+                v-focus
+              />
+            </template>
+            <template v-else>
+              <div class="folder-icon" :class="{'file-icon': folder.isFile}">{{ folder.isFile ? '📄' : '📁' }}</div>
+              <div class="folder-name">{{ folder.name }}</div>
+            </template>
+          </div>
+        </div>
+        
+        <!-- 空状态 -->
+        <div v-else class="empty-text">
+          右键点击创建一个新的文件夹
+        </div>
+        
+        <!-- 框选 -->
+        <div 
+          v-show="isSelectionActive"
+          class="selection-box"
+          :style="{
+            left: `${Math.min(selectionStart.x, selectionCurrent.x)}px`,
+            top: `${Math.min(selectionStart.y, selectionCurrent.y)}px`,
+            width: `${Math.abs(selectionCurrent.x - selectionStart.x)}px`,
+            height: `${Math.abs(selectionCurrent.y - selectionStart.y)}px`
+          }"
+        ></div>
+
+        <!-- 右键菜单 -->
+        <div 
+          v-show="contextMenuVisible" 
+          class="context-menu"
+          :style="{ top: contextMenuTop + 'px', left: contextMenuLeft + 'px' }"
+        >
+          <!-- 通用菜单项 -->
+          <div v-if="folders.length > 0" class="menu-item" @click="selectAllFolders">全选</div>
+          <div v-if="selectedFolders.length > 0" class="menu-item" @click="clearSelection">取消选择</div>
+          <div class="menu-item" @click="createNewFolder">创建新文件夹</div>
+          <div v-if="clipboardData" class="menu-item" @click="pasteFolder">粘贴</div>
+          
+          <!-- 多选模式下的菜单项 -->
+          <template v-if="selectedFolders.length > 1 && selectedFolder && selectedFolders.includes(selectedFolder.id)">
+            <div class="menu-item" @click="copySelectedFolders">复制选中的 {{selectedFolders.length}} 个项目</div>
+            <div class="menu-item" @click="deleteSelectedFolders">删除选中的 {{selectedFolders.length}} 个项目</div>
+          </template>
+          
+          <!-- 单选模式下的菜单项 -->
+          <template v-else-if="selectedFolder">
+            <div class="menu-item" @click="startEdit(selectedFolder)">重命名</div>
+            <div class="menu-item" @click="copyFolder(selectedFolder)">复制</div>
+            <div class="menu-item" @click="deleteFolder(selectedFolder)">删除</div>
+          </template>
+        </div>
+      </div>
+      
+      <div class="hint">
+        <strong>提示：</strong><br>
+        - 右键点击空白区域创建新文件夹<br>
+        - 双击文件夹名称进行修改<br>
+        - 右键点击文件夹可以复制、重命名或删除<br>
+        - 将文件夹拖拽到此区域上传<br>
+        - 点击"保存"按钮或关闭页面时会自动保存<br>
+        - 复制后可以在空白区域右键选择粘贴
+      </div>
+      
+      <div class="keyboard-shortcuts">
+        <strong>操作提示：</strong><br>
+        - <kbd>Ctrl</kbd> + 点击：多选文件夹<br>
+        - <kbd>Shift</kbd> + 点击：连续选择文件夹<br>
+        - <kbd>Ctrl+A</kbd> 或 右键菜单全选：选择所有文件夹<br>
+        - <kbd>Ctrl+C</kbd> 或 右键菜单复制：复制选中文件夹<br>
+        - <kbd>Ctrl+V</kbd> 或 右键菜单粘贴：粘贴文件夹<br>
+        - <kbd>Delete</kbd> 或 右键菜单删除：删除选中文件夹<br>
+        - <kbd>Esc</kbd> 或 空白区域点击 或 右键菜单取消选择：取消选择
+      </div>
+      
+      <!-- 选中信息提示 -->
+      <div v-if="selectedFolders.length > 0" class="selection-info">
+        已选择 {{ selectedFolders.length }} 个项目
+        <div class="selection-actions">
+          <button @click="copySelectedFolders">复制</button>
+          <button class="delete" @click="deleteSelectedFolders">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, nextTick, onMounted, onBeforeUnmount } = Vue;
+    // 自定义指令：自动聚焦
+    const vFocus = {
+      mounted: (el) => el.focus()
+    };
+
+    const app = createApp({
+      directives: {
+        focus: vFocus
+      },
+      setup() {
+        // 文件夹数据
+        const folders = ref([]);
+        let nextId = 1;
+        
+        // 拖拽状态
+        const isDragging = ref(false);
+        const isDraggingActive = ref(false);
+        
+        // 变更跟踪
+        const hasChanges = ref(false);
+        const originalData = ref('');
+        
+        // 复制粘贴状态
+        const clipboardData = ref(null);
+        
+        // 多选功能
+        const selectedFolders = ref([]);
+        const ctrlKeyPressed = ref(false);
+        const shiftKeyPressed = ref(false);
+        const lastSelectedIndex = ref(-1);
+        
+        // 鼠标悬停状态
+        const hoveredFolderId = ref(null);
+        
+        // 框选状态
+        const isSelectionActive = ref(false);
+        const selectionStart = ref({ x: 0, y: 0 });
+        const selectionCurrent = ref({ x: 0, y: 0 });
+        const folderElements = ref([]);
+        
+        // 拖拽状态
+        const draggedFolder = ref(null);
+        const dragOverFolder = ref(null);
+        const isDraggingFolder = ref(false);
+        const dragStartX = ref(0);
+        const dragStartY = ref(0);
+
+        // 右键菜单状态
+        const contextMenuVisible = ref(false);
+        const contextMenuTop = ref(0);
+        const contextMenuLeft = ref(0);
+        const selectedFolder = ref(null);
+
+        // 编辑状态
+        const editingFolder = ref(null);
+        const editInput = ref(null);
+        const tempName = ref('');
+
+        // 显示右键菜单
+        const showContextMenu = (event, folder = null) => {
+          // 计算菜单位置
+          contextMenuTop.value = event.clientY;
+          contextMenuLeft.value = event.clientX;
+          
+          // 确保菜单不会超出视口
+          const viewportHeight = window.innerHeight;
+          const viewportWidth = window.innerWidth;
+          // 动态计算菜单高度
+          let menuHeight = 40; // 默认仅有创建文件夹
+          
+          if (clipboardData.value && !folder) menuHeight += 40; // 加上粘贴选项
+          if (folder) {
+            if (selectedFolders.length > 1 && selectedFolders.includes(folder.id)) {
+              menuHeight = 120; // 多选模式下的菜单高度
+            } else {
+              menuHeight = 160; // 单选模式下的菜单高度
+            }
+          }
+          
+          const menuWidth = 240; // 增加菜单宽度以适应文字
+          
+          if (contextMenuTop.value + menuHeight > viewportHeight) {
+            contextMenuTop.value = viewportHeight - menuHeight;
+          }
+          
+          if (contextMenuLeft.value + menuWidth > viewportWidth) {
+            contextMenuLeft.value = viewportWidth - menuWidth;
+          }
+          
+          contextMenuVisible.value = true;
+          selectedFolder.value = folder;
+          
+          // 如果右键点击的是未选中的文件夹，而且没有按下Ctrl键，则清除当前选择并选中该文件夹
+          if (folder && !selectedFolders.value.includes(folder.id) && !ctrlKeyPressed.value) {
+            selectedFolders.value = [folder.id];
+            const index = folders.value.findIndex(f => f.id === folder.id);
+            if (index !== -1) {
+              lastSelectedIndex.value = index;
+            }
+          }
+        };
+
+        // 创建新文件夹
+        const createNewFolder = () => {
+          if (folders.value.length >= 20) {
+            ElementPlus.ElMessage.info("最多文件夹只能创建 20 个,请先移除部分后，再添加!")
+            contextMenuVisible.value = false;
+            return;
+          }
+          
+          // 生成新文件夹名
+          let baseName = '新建文件夹';
+          let folderName = baseName;
+          let counter = 1;
+          
+          // 检查是否有重名文件夹，如果有就自动追加数字
+          while (folders.value.some(f => f.name === folderName)) {
+            folderName = `${baseName}${counter}`;
+            counter++;
+          }
+          
+          const newFolder = { 
+            id: nextId++, 
+            name: folderName
+          };
+          
+          folders.value.push(newFolder);
+          contextMenuVisible.value = false;
+          hasChanges.value = true;
+          
+          ElementPlus.ElMessage({
+            message: `成功创建「${folderName}」`,
+            type: 'success',
+            duration: 1500
+          });
+          
+          // 创建后立即进入编辑模式
+          nextTick(() => {
+            startEdit(newFolder);
+          });
+        };
+
+        // 开始编辑文件夹名称
+        const startEdit = (folder) => {
+          tempName.value = folder.name;
+          editingFolder.value = { ...folder };
+          contextMenuVisible.value = false;
+          
+          // 确保输入框获得焦点
+          nextTick(() => {
+            // editInput是一个数组，我们获取第一个元素
+            if (editInput.value && editInput.value.length > 0) {
+              // 对于数组中的每个元素都尝试应用focus
+              editInput.value.forEach(input => {
+                if (input && typeof input.focus === 'function') {
+                  input.focus();
+                  input.select();
+                }
+              });
+            } else if (editInput.value && typeof editInput.value.focus === 'function') {
+              // 如果不是数组但是是单个元素
+              editInput.value.focus();
+              editInput.value.select();
+            }
+          });
+        };
+
+        // 完成编辑
+        const finishEdit = () => {
+          if (editingFolder.value) {
+            const index = folders.value.findIndex(f => f.id === editingFolder.value.id);
+            if (index !== -1) {
+              // 验证名称不为空
+              if (editingFolder.value.name.trim() === '') {
+                editingFolder.value.name = tempName.value;
+                ElementPlus.ElMessage.warning('文件夹名称不能为空');
+              } else {
+                // 检查是否存在重名
+                const trimmedName = editingFolder.value.name.trim();
+                const duplicateName = folders.value.find(
+                  f => f.id !== editingFolder.value.id && f.name === trimmedName
+                );
+                
+                if (duplicateName) {
+                  ElementPlus.ElMessage.error('文件夹名称「' + trimmedName + '」已存在，请使用其他名称');
+                  editingFolder.value.name = tempName.value;
+                } else if (folders.value[index].name !== trimmedName) {
+                  // 只有当名称真的改变时才标记变更
+                  folders.value[index].name = trimmedName;
+                  hasChanges.value = true;
+                  ElementPlus.ElMessage({
+                    message: '文件夹重命名成功',
+                    type: 'success'
+                  });
+                }
+              }
+            }
+            editingFolder.value = null;
+          }
+        };
+
+        // 取消编辑
+        const cancelEdit = () => {
+          editingFolder.value = null;
+        };
+
+        // 删除文件夹
+        const deleteFolder = (folder) => {
+          ElementPlus.ElMessageBox.confirm(
+            `确定要删除文件夹「${folder.name}」吗？`,
+            '删除确认',
+            {
+              confirmButtonText: '确定删除',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
+          ).then(() => {
+            const index = folders.value.findIndex(f => f.id === folder.id);
+            if (index !== -1) {
+              folders.value.splice(index, 1);
+              contextMenuVisible.value = false;
+              hasChanges.value = true;
+              ElementPlus.ElMessage({
+                message: `文件夹「${folder.name}」已成功删除`,
+                type: 'success'
+              });
+            }
+          }).catch(() => {
+            contextMenuVisible.value = false;
+            ElementPlus.ElMessage({
+              type: 'info',
+              message: '已取消删除'
+            });
+          });
+        };
+
+        // 处理容器点击事件
+        const handleContainerClick = (event) => {
+          // 如果点击的是容器本身，而不是容器内的文件夹
+          if (event.target === event.currentTarget) {
+            // 如果没有按下Ctrl键，清除选中状态
+            if (!ctrlKeyPressed.value && !shiftKeyPressed.value) {
+              selectedFolders.value = [];
+              lastSelectedIndex.value = -1;
+            }
+          }
+        };
+        
+        // 鼠标悬停在文件夹上
+        const onFolderMouseOver = (folder) => {
+          hoveredFolderId.value = folder.id;
+        };
+        
+        // 鼠标移出文件夹
+        const onFolderMouseLeave = (folder) => {
+          if (hoveredFolderId.value === folder.id) {
+            hoveredFolderId.value = null;
+          }
+        };
+        
+        // 全选文件夹
+        const selectAllFolders = () => {
+          if (folders.value.length > 0) {
+            selectedFolders.value = folders.value.map(f => f.id);
+            lastSelectedIndex.value = folders.value.length - 1;
+            ElementPlus.ElMessage({
+              message: `已选择全部 ${folders.value.length} 个项目`,
+              type: 'success',
+              duration: 1500
+            });
+          }
+          contextMenuVisible.value = false;
+        };
+        
+        // 清除选中状态
+        const clearSelection = () => {
+          selectedFolders.value = [];
+          lastSelectedIndex.value = -1;
+          contextMenuVisible.value = false;
+        };
+        
+        // 开始拖拽文件夹
+        const onFolderDragStart = (event, folder, index) => {
+          // 如果正在编辑文件夹，不允许拖拽
+          if (editingFolder.value) return;
+          
+          // 如果正在框选，不允许拖拽
+          if (isSelectionActive.value) return;
+          
+          // 只有鼠标左键可以拖拽
+          if (event.button !== 0) return;
+          
+          // 记录鼠标坐标允许判断移动距离
+          dragStartX.value = event.clientX;
+          dragStartY.value = event.clientY;
+          
+          // 添加文档级事件监听
+          document.addEventListener('mousemove', checkDragThreshold);
+          document.addEventListener('mouseup', cancelDragStart);
+          
+          // 检查用户一定距离后开始拖拽 (避免点击被误认为拖拽)
+          function checkDragThreshold(e) {
+            const dx = Math.abs(e.clientX - dragStartX.value);
+            const dy = Math.abs(e.clientY - dragStartY.value);
+            
+            // 如果移动5像素以上，认为是拖拽操作
+            if (dx > 5 || dy > 5) {
+              document.removeEventListener('mousemove', checkDragThreshold);
+              document.removeEventListener('mouseup', cancelDragStart);
+              
+              // 标记拖拽状态
+              isDraggingFolder.value = true;
+              draggedFolder.value = folder;
+              
+              // 添加文档级的事件处理
+              document.addEventListener('mousemove', handleDocumentMouseMove);
+              document.addEventListener('mouseup', handleDocumentMouseUp);
+            }
+          }
+          
+          function cancelDragStart() {
+            document.removeEventListener('mousemove', checkDragThreshold);
+            document.removeEventListener('mouseup', cancelDragStart);
+          }
+          
+          function handleDocumentMouseMove(e) {
+            if (!isDraggingFolder.value) return;
+            
+            // 阻止默认行为
+            e.preventDefault();
+            
+            // 获取当前鼠标位置下的元素
+            const elementsUnderCursor = document.elementsFromPoint(e.clientX, e.clientY);
+            
+            // 查找元素下的文件夹元素
+            const folderElement = elementsUnderCursor.find(el => 
+              el.classList.contains('folder-item') && 
+              (!draggedFolder.value || el.getAttribute('data-id') !== draggedFolder.value.id)
+            );
+            
+            // 如果鼠标下有文件夹元素，更新悬浮文件夹
+            if (folderElement) {
+              const folderId = folderElement.getAttribute('data-id');
+              dragOverFolder.value = folders.value.find(f => f.id.toString() === folderId);
+            } else {
+              dragOverFolder.value = null;
+            }
+          }
+          
+          function handleDocumentMouseUp(e) {
+            // 移除文档级事件监听
+            document.removeEventListener('mousemove', handleDocumentMouseMove);
+            document.removeEventListener('mouseup', handleDocumentMouseUp);
+            
+            // 如果没有完成拖拽，直接返回
+            if (!isDraggingFolder.value) return;
+            
+            // 如果有目标文件夹，进行交换
+            if (dragOverFolder.value && draggedFolder.value) {
+              swapFolders(draggedFolder.value, dragOverFolder.value);
+            }
+            
+            // 重置拖拽状态
+            isDraggingFolder.value = false;
+            draggedFolder.value = null;
+            dragOverFolder.value = null;
+          }
+        };
+        
+        // 实现HTML5原生拖拽功能
+        
+        // 开始拖拽
+        const handleDragStart = (event, folder, index) => {
+          // 如果正在编辑文件夹，不允许拖拽
+          if (editingFolder.value) {
+            event.preventDefault();
+            return;
+          }
+          
+          // 如果正在框选，不允许拖拽
+          if (isSelectionActive.value) {
+            event.preventDefault();
+            return;
+          }
+          
+          // 设置拖拽数据
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', folder.id);
+          
+          // 记录当前拖拽的文件夹
+          draggedFolder.value = folder;
+          
+          // 添加样式标记拖拽中
+          event.target.classList.add('dragging');
+          
+          // 设置半透明效果
+          setTimeout(() => {
+            event.target.style.opacity = '0.4';
+          }, 0);
+        };
+        
+        // 拖拽经过其他文件夹上方
+        const handleDragOver = (event, folder, index) => {
+          // 如果没有在拖拽文件夹，则忽略
+          if (!draggedFolder.value) return;
+          
+          // 不能拖拽到自己上面
+          if (draggedFolder.value.id === folder.id) return;
+          
+          // 防止默认行为
+          event.preventDefault();
+          
+          // 置空效果为移动
+          event.dataTransfer.dropEffect = 'move';
+          
+          // 更新当前悬浮在哪个文件夹上
+          dragOverFolder.value = folder;
+        };
+        
+        // 放下完成拖拽
+        const handleDrop = (event, folder, index) => {
+          // 防止默认行为
+          event.preventDefault();
+          
+          // 如果没有拖拽的文件夹或者拖拽到自己上面，则忽略
+          if (!draggedFolder.value || draggedFolder.value.id === folder.id) {
+            return;
+          }
+          
+          // 获取拖拽文件夹ID
+          const draggedId = event.dataTransfer.getData('text/plain');
+          const sourceFolder = folders.value.find(f => f.id.toString() === draggedId);
+          
+          // 如果没有找到源文件夹，则忽略
+          if (!sourceFolder) return;
+          
+          // 交换位置
+          swapFolders(sourceFolder, folder);
+          
+          // 重置拖拽状态
+          draggedFolder.value = null;
+          dragOverFolder.value = null;
+        };
+        
+        // 交换两个文件夹的位置
+        const swapFolders = (sourceFolder, targetFolder) => {
+          // 获取两个文件夹的索引
+          const sourceIndex = folders.value.findIndex(f => f.id === sourceFolder.id);
+          const targetIndex = folders.value.findIndex(f => f.id === targetFolder.id);
+          
+          // 检查有效性
+          if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return;
+          
+          // 创建新数组并重新排序
+          const newFolders = [...folders.value];
+          
+          // 先移除源文件夹
+          const [removedFolder] = newFolders.splice(sourceIndex, 1);
+          
+          // 计算插入索引（根据删除操作后的数组状态）
+          let insertIndex = targetIndex;
+          if (sourceIndex < targetIndex) {
+            insertIndex--;
+          }
+          
+          // 在目标位置插入
+          newFolders.splice(insertIndex + 1, 0, removedFolder);
+          
+          // 更新文件夹数组
+          folders.value = newFolders;
+          
+          // 标记已修改
+          hasChanges.value = true;
+          
+          // 保存数据
+          saveData();
+          
+          // 显示成功提示
+          ElementPlus.ElMessage({
+            message: '文件夹顺序已更新',
+            type: 'success',
+            duration: 1500
+          });
+        };
+        
+        // 开始框选
+        const startDragSelection = (event) => {
+          // 只有在左键点击且点击在容器本身上时才启动框选
+          if (event.button !== 0 || event.target !== event.currentTarget) return;
+          
+          // 记录起始点坐标
+          selectionStart.value = { 
+            x: event.clientX, 
+            y: event.clientY 
+          };
+          selectionCurrent.value = { 
+            x: event.clientX, 
+            y: event.clientY 
+          };
+          
+          // 验证是否是实际的拖动行为（防止单击时触发）
+          document.addEventListener('mousemove', checkDragThreshold);
+          document.addEventListener('mouseup', cancelDragCheck);
+          
+          function checkDragThreshold(e) {
+            const dx = Math.abs(e.clientX - selectionStart.value.x);
+            const dy = Math.abs(e.clientY - selectionStart.value.y);
+            
+            // 如果移动超过5像素，认为是拖动行为
+            if (dx > 5 || dy > 5) {
+              document.removeEventListener('mousemove', checkDragThreshold);
+              document.removeEventListener('mouseup', cancelDragCheck);
+              
+              // 激活框选
+              isSelectionActive.value = true;
+              
+              // 如果没有按下Ctrl键，清除之前的选择
+              if (!ctrlKeyPressed.value && !shiftKeyPressed.value) {
+                // 清除数组
+                selectedFolders.value = [];
+                selectedFolder.value = null;
+                
+                // 清除所有选中样式，确保视觉上的一致性
+                const items = document.querySelectorAll('.folder-item');
+                items.forEach(item => {
+                  item.classList.remove('selected');
+                });
+              }
+            }
+          }
+          
+          function cancelDragCheck() {
+            document.removeEventListener('mousemove', checkDragThreshold);
+            document.removeEventListener('mouseup', cancelDragCheck);
+          }
+          
+          // 记录所有文件夹元素的位置
+          const container = document.querySelector('.folder-container');
+          const items = container.querySelectorAll('.folder-item');
+          folderElements.value = Array.from(items).map((el, index) => {
+            const rect = el.getBoundingClientRect();
+            return {
+              id: folders.value[index].id,
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              element: el  // 保存DOM元素引用以便直接操作
+            };
+          });
+        };
+        
+        // 更新框选
+        const updateDragSelection = (event) => {
+          if (!isSelectionActive.value) return;
+          
+          // 更新当前位置
+          selectionCurrent.value = { x: event.clientX, y: event.clientY };
+          
+          // 计算选择框的坐标
+          const selectionBox = {
+            left: Math.min(selectionStart.value.x, selectionCurrent.value.x),
+            top: Math.min(selectionStart.value.y, selectionCurrent.value.y),
+            right: Math.max(selectionStart.value.x, selectionCurrent.value.x),
+            bottom: Math.max(selectionStart.value.y, selectionCurrent.value.y)
+          };
+          
+          // 只在开始拖动时获取一次元素，然后缓存它们
+          if (folderElements.value.length === 0) {
+            const container = document.querySelector('.folder-container');
+            const items = container.querySelectorAll('.folder-item');
+            
+            folderElements.value = Array.from(items).map((el, index) => {
+              const rect = el.getBoundingClientRect();
+              const folderId = folders.value[index].id;
+              
+              return {
+                id: folderId,
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                element: el,
+                selected: selectedFolders.value.includes(folderId)
+              };
+            });
+          }
+          
+          // 记录所有已更改的文件夹ID
+          const prevSelectedIds = [...selectedFolders.value];
+          
+          // 如果不是多选模式，临时清空选择数组（但不影响UI，UI会在后面更新）
+          if (!ctrlKeyPressed.value && !shiftKeyPressed.value) {
+            selectedFolders.value = [];
+          }
+          
+          // 检查每个文件夹是否在选择框内
+          folderElements.value.forEach(folder => {
+            // 检查重叠 - 只要有部分重叠就算选中
+            const isIntersecting = !(folder.right < selectionBox.left || 
+                                 folder.left > selectionBox.right || 
+                                 folder.bottom < selectionBox.top || 
+                                 folder.top > selectionBox.bottom);
+            
+            if (isIntersecting) {
+              // 添加到选中数组
+              if (!selectedFolders.value.includes(folder.id)) {
+                selectedFolders.value.push(folder.id);
+              }
+              
+              // 更新视觉效果
+              if (!folder.element.classList.contains('selected')) {
+                folder.element.classList.add('selected');
+                folder.selected = true;
+              }
+            } else if (!ctrlKeyPressed.value && !shiftKeyPressed.value) {
+              // 如果不在框内且不是多选模式，则移除
+              folder.element.classList.remove('selected');
+              folder.selected = false;
+            }
+          });
+          
+          // 触发事件告知Vue已更新DOM
+          if (selectedFolders.value.length > 0) {
+            // 尝试使用自定义事件通知Vue更新
+            window.dispatchEvent(new CustomEvent('selectionChanged', {
+              detail: { selectedIds: selectedFolders.value }
+            }));
+          }
+        };
+        
+        // 结束框选
+        const endDragSelection = (event) => {
+          if (!isSelectionActive.value) return;
+          
+          // 结束框选状态
+          isSelectionActive.value = false;
+          
+          // 清空记录的文件夹元素数组，下次重新获取
+          folderElements.value = [];
+          
+          // 如果没有选择任何文件夹，结束处理
+          if (selectedFolders.value.length === 0) {
+            return;
+          }
+          
+          // 更新最后选择的索引，用于Shift多选
+          const lastSelectedId = selectedFolders.value[selectedFolders.value.length - 1];
+          const index = folders.value.findIndex(f => f.id === lastSelectedId);
+          if (index !== -1) {
+            lastSelectedIndex.value = index;
+          }
+          
+          // 更新当前选中的文件夹（用于右键菜单等）
+          if (selectedFolders.value.length === 1) {
+            const folder = folders.value.find(f => f.id === selectedFolders.value[0]);
+            if (folder) {
+              selectedFolder.value = folder;
+            }
+          } else if (selectedFolders.value.length > 1) {
+            selectedFolder.value = null;
+          } else {
+            selectedFolder.value = null;
+          }
+          
+          // 显示选择信息反馈
+          ElementPlus.ElMessage({
+            message: `已选择 ${selectedFolders.value.length} 个项目`,
+            type: 'success',
+            duration: 1500
+          });
+          
+          // 确保DOM和数据的同步
+          // 获取所有文件夹元素
+          const items = document.querySelectorAll('.folder-item');
+          
+          // 确保选中状态与视觉效果一致
+          items.forEach((el, idx) => {
+            const folderId = folders.value[idx].id;
+            const isSelected = selectedFolders.value.includes(folderId);
+            
+            if (isSelected && !el.classList.contains('selected')) {
+              el.classList.add('selected');
+            } else if (!isSelected && el.classList.contains('selected')) {
+              el.classList.remove('selected');
+            }
+          });
+        };
+        
+        // 点击其他区域关闭右键菜单
+        const handleClickOutside = () => {
+          contextMenuVisible.value = false;
+        };
+
+        // 处理按键事件
+        const handleKeyDown = (event) => {
+          // 记录修改键状态
+          ctrlKeyPressed.value = event.ctrlKey || event.metaKey; // metaKey 是 Mac 上的 Command 键
+          shiftKeyPressed.value = event.shiftKey;
+          
+          // ESC键关闭菜单或取消选择
+          if (event.key === 'Escape') {
+            contextMenuVisible.value = false;
+            if (selectedFolders.value.length > 0) {
+              selectedFolders.value = [];
+              lastSelectedIndex.value = -1;
+            }
+          }
+          
+          // Ctrl+A 全选
+          if ((event.ctrlKey || event.metaKey) && event.key === 'a') {
+            event.preventDefault(); // 防止浏览器默认全选行为
+            if (folders.value.length > 0) {
+              selectedFolders.value = folders.value.map(f => f.id);
+            }
+          }
+          
+          // Ctrl+C 复制选中项
+          if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+            if (selectedFolders.value.length > 0) {
+              copySelectedFolders();
+            }
+          }
+          
+          // Ctrl+V 粘贴
+          if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+            pasteFolder();
+          }
+          
+          // Delete 键删除
+          if (event.key === 'Delete') {
+            if (selectedFolders.value.length > 0) {
+              deleteSelectedFolders();
+            }
+          }
+        };
+        
+        // 处理按键松开事件
+        const handleKeyUp = (event) => {
+          ctrlKeyPressed.value = event.ctrlKey || event.metaKey;
+          shiftKeyPressed.value = event.shiftKey;
+        };
+
+        // 处理拖放文件夹
+        const onDragOver = (event) => {
+          isDragging.value = true;
+          isDraggingActive.value = true;
+        };
+        
+        const onDragLeave = (event) => {
+          isDraggingActive.value = false;
+        };
+        
+        const onDrop = async (event) => {
+          isDragging.value = false;
+          isDraggingActive.value = false;
+          
+          // 处理拖放的文件或文件夹
+          const items = event.dataTransfer.items;
+          if (items) {
+            for (let i = 0; i < items.length; i++) {
+              const item = items[i];
+              // 尝试作为文件夹处理
+              if (item.webkitGetAsEntry) {
+                const entry = item.webkitGetAsEntry();
+                if (entry && entry.isDirectory) {
+                  await processDirectoryEntry(entry);
+                } else if (entry && entry.isFile) {
+                  // 如果是文件，作为单独文件处理
+                  processFileEntry(entry);
+                }
+              }
+            }
+          }
+        };
+        
+        // 处理文件夹入口
+        const processDirectoryEntry = async (entry) => {
+          try {
+            if (folders.value.length >= 20) {
+              ElementPlus.ElMessage.warning("最多文件夹只能创建 20 个,请先移除部分后，再添加!");
+              return;
+            }
+            
+            // 检查是否有重名文件夹
+            if (folders.value.some(f => f.name === entry.name)) {
+              // 生成新名称
+              let baseName = entry.name;
+              let extension = '';
+              let newName = baseName;
+              let counter = 1;
+              
+              // 如果有扩展名，分开处理
+              const lastDotIndex = baseName.lastIndexOf('.');
+              if (lastDotIndex > 0) {
+                extension = baseName.substring(lastDotIndex);
+                baseName = baseName.substring(0, lastDotIndex);
+              }
+              
+              // 生成非重复名称
+              while (folders.value.some(f => f.name === newName)) {
+                newName = `${baseName}(${counter})${extension}`;
+                counter++;
+              }
+              
+              // 创建一个新文件夹
+              const newFolder = {
+                id: nextId++,
+                name: newName,
+                children: []
+              };
+              
+              folders.value.push(newFolder);
+              hasChanges.value = true;
+              
+              // 显示重命名提示
+              ElementPlus.ElMessage({
+                message: `已存在同名文件夹，已自动重命名为: ${newName}`,
+                type: 'warning',
+                duration: 3000
+              });
+            } else {
+              // 创建一个新文件夹
+              const newFolder = {
+                id: nextId++,
+                name: entry.name,
+                children: []
+              };
+              
+              folders.value.push(newFolder);
+              hasChanges.value = true;
+              
+              // 显示成功提示
+              ElementPlus.ElMessage({
+                message: `成功添加文件夹: ${entry.name}`,
+                type: 'success',
+                duration: 2000
+              });
+            }
+          } catch (error) {
+            console.error('处理文件夹出错:', error);
+            ElementPlus.ElMessage.error('处理文件夹出错: ' + error.message);
+          }
+        };
+        
+        // 处理文件入口
+        const processFileEntry = (entry) => {
+          if (folders.value.length >= 20) {
+            ElementPlus.ElMessage.warning("最多文件夹只能创建 20 个,请先移除部分后，再添加!");
+            return;
+          }
+          
+          // 检查是否有重名文件
+          if (folders.value.some(f => f.name === entry.name)) {
+            // 生成新名称
+            let baseName = entry.name;
+            let extension = '';
+            let newName = baseName;
+            let counter = 1;
+            
+            // 如果有扩展名，分开处理
+            const lastDotIndex = baseName.lastIndexOf('.');
+            if (lastDotIndex > 0) {
+              extension = baseName.substring(lastDotIndex);
+              baseName = baseName.substring(0, lastDotIndex);
+            }
+            
+            // 生成非重复名称
+            while (folders.value.some(f => f.name === newName)) {
+              newName = `${baseName}(${counter})${extension}`;
+              counter++;
+            }
+            
+            // 为文件创建文件夹视图
+            const newFolder = {
+              id: nextId++,
+              name: newName,
+              isFile: true
+            };
+            
+            folders.value.push(newFolder);
+            hasChanges.value = true;
+            
+            // 显示重命名提示
+            ElementPlus.ElMessage({
+              message: `已存在同名文件，已自动重命名为: ${newName}`,
+              type: 'warning',
+              duration: 3000
+            });
+          } else {
+            // 为文件创建文件夹视图
+            const newFolder = {
+              id: nextId++,
+              name: entry.name,
+              isFile: true
+            };
+            
+            folders.value.push(newFolder);
+            hasChanges.value = true;
+            
+            // 显示成功提示
+            ElementPlus.ElMessage({
+              message: `成功添加文件: ${entry.name}`,
+              type: 'success',
+              duration: 2000
+            });
+          }
+        };
+        const clearData = () => {
+          ElementPlus.ElMessageBox.confirm(
+            '是否要清空所有的文件夹列表?',
+            'Warning',
+            {
+              confirmButtonText: '同意',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
+          )
+          .then(() => {
+            ElementPlus.ElMessage({
+              type: 'success',
+              message: '删除成功',
+            });
+            localStorage.removeItem('folderManager');
+            folders.value = [];
+            nextId = 1;
+            hasChanges.value = false;
+            originalData.value = '';
+          })
+          .catch(() => {
+            ElementPlus.ElMessage({
+              type: 'info',
+              message: '未删除',
+            });
+          });
+        }
+        // 保存数据到本地存储
+        const saveData = () => {
+          try {
+            // 检查是否有变更
+            const currentData = JSON.stringify({
+              folders: folders.value,
+              nextId: nextId
+            });
+            
+            if (!hasChanges.value && currentData === originalData.value) {
+              // 使用 Element Plus 显示提示
+              ElementPlus.ElMessage({
+                message: '没有检测到文件夹变更，无需保存',
+                type: 'warning',
+                duration: 2000
+              });
+              return;
+            }
+            
+            localStorage.setItem('folderManager', currentData);
+            
+            // 更新原始数据
+            originalData.value = currentData;
+            hasChanges.value = false;
+            
+            // 使用 Element Plus 显示成功提示
+            ElementPlus.ElMessage({
+              message: '数据已成功保存到本地',
+              type: 'success',
+              duration: 2000
+            });
+            
+            console.log('数据已保存到本地');
+          } catch (error) {
+            console.error('保存数据出错:', error);
+            
+            // 使用 Element Plus 显示错误提示
+            ElementPlus.ElMessage({
+              message: '保存数据时出错: ' + error.message,
+              type: 'error',
+              duration: 3000
+            });
+          }
+        };
+        
+        // 从本地存储加载数据
+        const loadData = () => {
+          try {
+            const savedData = localStorage.getItem('folderManager');
+            if (savedData) {
+              const parsedData = JSON.parse(savedData);
+              folders.value = parsedData.folders || [];
+              nextId = parsedData.nextId || 1;
+              console.log('数据已从本地加载');
+              
+              // 保存原始数据用于变更检测
+              originalData.value = savedData;
+              hasChanges.value = false;
+            }
+          } catch (error) {
+            console.error('加载数据出错:', error);
+            ElementPlus.ElMessage.error('加载数据时出错: ' + error.message);
+          }
+        };
+        
+        // 监听页面关闭事件以自动保存
+        const handleBeforeUnload = () => {
+          if (hasChanges.value) {
+            saveData();
+          }
+        };
+        
+        // 处理文件夹点击
+        const handleFolderClick = (folder, index, event) => {
+          // 防止在编辑模式下触发选择
+          if (editingFolder.value) return;
+          
+          // 如果是双击，交给双击事件处理
+          if (event.detail > 1) return;
+          
+          // 如果是右键，交给菜单处理
+          if (event.button === 2) return;
+          
+          // 当按下 Ctrl 或 Command 键
+          if (ctrlKeyPressed.value) {
+            const idIndex = selectedFolders.value.indexOf(folder.id);
+            if (idIndex === -1) {
+              // 添加到选中项
+              selectedFolders.value.push(folder.id);
+              lastSelectedIndex.value = index;
+            } else {
+              // 从选中项移除
+              selectedFolders.value.splice(idIndex, 1);
+              lastSelectedIndex.value = selectedFolders.value.length > 0 ? index : -1;
+            }
+          }
+          // 当按下 Shift 键
+          else if (shiftKeyPressed.value && lastSelectedIndex.value !== -1) {
+            // 计算范围
+            const start = Math.min(lastSelectedIndex.value, index);
+            const end = Math.max(lastSelectedIndex.value, index);
+            
+            // 选择范围内的所有文件夹
+            selectedFolders.value = [];
+            for (let i = start; i <= end; i++) {
+              if (i < folders.value.length) {
+                selectedFolders.value.push(folders.value[i].id);
+              }
+            }
+          }
+          // 不按修饰键时，单选
+          else {
+            selectedFolders.value = [folder.id];
+            lastSelectedIndex.value = index;
+          }
+        };
+        
+        // 复制选中文件夹
+        const copySelectedFolders = () => {
+          if (selectedFolders.value.length === 0) return;
+          
+          // 如果只选了一个文件夹，使用单个复制逻辑
+          if (selectedFolders.value.length === 1) {
+            const folder = folders.value.find(f => f.id === selectedFolders.value[0]);
+            if (folder) {
+              copyFolder(folder);
+            }
+            return;
+          }
+          
+          // 多选复制逻辑
+          const selectedItems = folders.value.filter(f => selectedFolders.value.includes(f.id));
+          
+          // 存储到内部剪贴板
+          clipboardData.value = {
+            type: 'multiple',
+            items: selectedItems
+          };
+          
+          ElementPlus.ElMessage({
+            message: `已复制 ${selectedItems.length} 个项目`,
+            type: 'success',
+            duration: 1500
+          });
+        };
+        
+        // 删除选中文件夹
+        const deleteSelectedFolders = () => {
+          if (selectedFolders.value.length === 0) return;
+          
+          // 如果只选了一个文件夹，使用单个删除逻辑
+          if (selectedFolders.value.length === 1) {
+            const folder = folders.value.find(f => f.id === selectedFolders.value[0]);
+            if (folder) {
+              deleteFolder(folder);
+            }
+            return;
+          }
+          
+          // 多选删除逻辑
+          ElementPlus.ElMessageBox.confirm(
+            `确定要删除选中的 ${selectedFolders.value.length} 个项目吗？`,
+            '批量删除',
+            {
+              confirmButtonText: '确定删除',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
+          ).then(() => {
+            // 记录要删除的项目名称
+            const itemNames = folders.value
+              .filter(f => selectedFolders.value.includes(f.id))
+              .map(f => f.name)
+              .join(', ');
+              
+            // 从数组中过滤出要删除的项目
+            folders.value = folders.value.filter(f => !selectedFolders.value.includes(f.id));
+            selectedFolders.value = [];
+            lastSelectedIndex.value = -1;
+            hasChanges.value = true;
+            
+            ElementPlus.ElMessage({
+              message: `已删除选中项目: ${itemNames}`,
+              type: 'success'
+            });
+          }).catch(() => {
+            ElementPlus.ElMessage({
+              type: 'info',
+              message: '已取消删除'
+            });
+          });
+        };
+        
+        // 生命周期钩子
+        onMounted(() => {
+          document.addEventListener('click', handleClickOutside);
+          document.addEventListener('keydown', handleKeyDown);
+          document.addEventListener('keyup', handleKeyUp);
+          window.addEventListener('beforeunload', handleBeforeUnload);
+          
+          // 加载保存的数据
+          loadData();
+        });
+
+        onBeforeUnmount(() => {
+          document.removeEventListener('click', handleClickOutside);
+          document.removeEventListener('keydown', handleKeyDown);
+          document.removeEventListener('keyup', handleKeyUp);
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+        });
+
+        // 复制文件夹
+        const copyFolder = (folder) => {
+          // 存储在内部剪贴板中
+          clipboardData.value = { ...folder };
+          
+          // 尝试将数据写入系统剪贴板
+          try {
+            navigator.clipboard.writeText(JSON.stringify(folder))
+              .then(() => {
+                ElementPlus.ElMessage({
+                  message: `已复制文件夹：${folder.name}`,
+                  type: 'success',
+                  duration: 1500
+                });
+              })
+              .catch(err => {
+                console.warn('写入系统剪贴板出错，但内部剪贴板可用', err);
+                ElementPlus.ElMessage({
+                  message: `已复制文件夹：${folder.name} (仅应用内可用)`,
+                  type: 'success',
+                  duration: 1500
+                });
+              });
+          } catch (e) {
+            // 如果浏览器不支持剪贴板 API，依然可使用内部剪贴板
+            ElementPlus.ElMessage({
+              message: `已复制文件夹：${folder.name} (仅应用内可用)`,
+              type: 'success',
+              duration: 1500
+            });
+          }
+          contextMenuVisible.value = false;
+        };
+        
+        // 粘贴文件夹
+        const pasteFolder = async () => {
+          // 检查数量限制
+          if (folders.value.length >= 20) {
+            ElementPlus.ElMessage.warning("最多文件夹只能创建 20 个,请先移除部分后，再添加!");
+            contextMenuVisible.value = false;
+            return;
+          }
+          
+          // 优先尝试使用内部剪贴板
+          if (clipboardData.value) {
+            // 检查是否是批量复制
+            if (clipboardData.value.type === 'multiple' && clipboardData.value.items) {
+              // 批量粘贴逻辑
+              const items = clipboardData.value.items;
+              
+              // 检查是否超过数量限制
+              if (folders.value.length + items.length > 20) {
+                ElementPlus.ElMessage.warning(`最多仅能创建 20 个项目。当前 ${folders.value.length} 个，不能再添加 ${items.length} 个`);
+                return;
+              }
+              
+              // 批量创建文件夹
+              const newFolders = [];
+              
+              for (const item of items) {
+                // 生成新名称防止重复
+                let baseName = item.name;
+                let extension = '';
+                let newName = baseName;
+                let counter = 1;
+                
+                // 如果有扩展名，分开处理
+                const lastDotIndex = baseName.lastIndexOf('.');
+                if (lastDotIndex > 0 && item.isFile) {
+                  extension = baseName.substring(lastDotIndex);
+                  baseName = baseName.substring(0, lastDotIndex);
+                }
+                
+                // 检查已有文件夹及新创建的文件夹中是否有重名
+                const existingNames = [...folders.value.map(f => f.name), ...newFolders.map(f => f.name)];
+                while (existingNames.includes(newName)) {
+                  newName = `${baseName} 的副本${counter > 1 ? ' ' + counter : ''}${extension}`;
+                  counter++;
+                }
+                
+                // 创建新文件夹
+                const newFolder = {
+                  id: nextId++,
+                  name: newName,
+                  isFile: item.isFile || false,
+                  children: item.children || []
+                };
+                
+                newFolders.push(newFolder);
+              }
+              
+              // 添加到当前文件夹列表
+              folders.value.push(...newFolders);
+              hasChanges.value = true;
+              
+              ElementPlus.ElMessage({
+                message: `成功粘贴 ${newFolders.length} 个项目`,
+                type: 'success',
+                duration: 1500
+              });
+              
+              contextMenuVisible.value = false;
+              return;
+            }
+            // 生成新文件夹名称
+            let baseName = clipboardData.value.name;
+            let extension = '';
+            let newName = baseName;
+            let counter = 1;
+            
+            // 如果有扩展名，分开处理
+            const lastDotIndex = baseName.lastIndexOf('.');
+            if (lastDotIndex > 0 && clipboardData.value.isFile) {
+              extension = baseName.substring(lastDotIndex);
+              baseName = baseName.substring(0, lastDotIndex);
+            }
+            
+            // 检查重名并生成新名称
+            while (folders.value.some(f => f.name === newName)) {
+              newName = `${baseName} 的副本${counter > 1 ? ' ' + counter : ''}${extension}`;
+              counter++;
+            }
+            
+            // 创建新文件夹
+            const newFolder = {
+              id: nextId++,
+              name: newName,
+              isFile: clipboardData.value.isFile || false,
+              children: clipboardData.value.children || []
+            };
+            
+            folders.value.push(newFolder);
+            hasChanges.value = true;
+            contextMenuVisible.value = false;
+            
+            ElementPlus.ElMessage({
+              message: `成功粘贴文件夹: ${newName}`,
+              type: 'success',
+              duration: 1500
+            });
+            return;
+          }
+          
+          // 如果内部剪贴板为空，尝试从系统剪贴板读取
+          try {
+            const text = await navigator.clipboard.readText();
+            try {
+              const data = JSON.parse(text);
+              if (data && data.name) {
+                // 生成新文件夹名称
+                let baseName = data.name;
+                let newName = baseName;
+                let counter = 1;
+                
+                // 检查重名并生成新名称
+                while (folders.value.some(f => f.name === newName)) {
+                  newName = `${baseName} 的副本${counter > 1 ? ' ' + counter : ''}`;
+                  counter++;
+                }
+                
+                // 创建新文件夹
+                const newFolder = {
+                  id: nextId++,
+                  name: newName,
+                  isFile: data.isFile || false
+                };
+                
+                folders.value.push(newFolder);
+                hasChanges.value = true;
+                contextMenuVisible.value = false;
+                
+                ElementPlus.ElMessage({
+                  message: `成功从剪贴板粘贴: ${newName}`,
+                  type: 'success',
+                  duration: 1500
+                });
+              } else {
+                throw new Error('无效的文件夹数据');
+              }
+            } catch (parseError) {
+              // JSON 解析失败，尝试将文本作为文件名创建
+              if (text.trim()) {
+                // 生成新文件夹名称
+                let baseName = text.length > 20 ? text.substring(0, 20) + '...' : text;
+                let newName = baseName;
+                let counter = 1;
+                
+                // 检查重名并生成新名称
+                while (folders.value.some(f => f.name === newName)) {
+                  newName = `${baseName} (${counter})`;
+                  counter++;
+                }
+                
+                // 创建新文件夹
+                const newFolder = {
+                  id: nextId++,
+                  name: newName,
+                  isFile: true
+                };
+                
+                folders.value.push(newFolder);
+                hasChanges.value = true;
+                contextMenuVisible.value = false;
+                
+                ElementPlus.ElMessage({
+                  message: `已将剪贴板文本创建为文件: ${newName}`,
+                  type: 'success',
+                  duration: 1500
+                });
+              } else {
+                ElementPlus.ElMessage({
+                  message: '剪贴板中无可粘贴的内容',
+                  type: 'warning',
+                  duration: 1500
+                });
+              }
+            }
+          } catch (error) {
+            ElementPlus.ElMessage({
+              message: '无法访问系统剪贴板，请先复制文件夹',
+              type: 'error',
+              duration: 1500
+            });
+          }
+          contextMenuVisible.value = false;
+        };
+
+        return {
+          folders,
+          contextMenuVisible,
+          contextMenuTop,
+          contextMenuLeft,
+          selectedFolder,
+          editingFolder,
+          editInput,
+          tempName,
+          isDragging,
+          isDraggingActive,
+          hasChanges,
+          clipboardData,
+          selectedFolders,
+          hoveredFolderId,
+          isSelectionActive,
+          selectionStart,
+          selectionCurrent,
+          showContextMenu,
+          createNewFolder,
+          startEdit,
+          finishEdit,
+          cancelEdit,
+          deleteFolder,
+          copyFolder,
+          pasteFolder,
+          handleFolderClick,
+          handleContainerClick,
+          copySelectedFolders,
+          deleteSelectedFolders,
+          selectAllFolders,
+          clearSelection,
+          onFolderMouseOver,
+          onFolderMouseLeave,
+          startDragSelection,
+          updateDragSelection,
+          endDragSelection,
+          // 拖拽相关函数
+          handleDragStart,
+          handleDragOver,
+          handleDrop,
+          onDragOver,
+          onDragLeave,
+          onDrop,
+          saveData,
+          clearData
+        };
+      }
+    });
+    
+    // 使用 Element Plus
+    app.use(ElementPlus);
+    
+    // 挂载应用
+    app.mount('#app');
+  </script>
+</body>
+</html>
